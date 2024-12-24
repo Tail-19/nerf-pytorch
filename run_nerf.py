@@ -768,8 +768,7 @@ def train():
         img_loss = img2mse(rgb, target_s)
         trans = extras['raw'][...,-1]
         loss = img_loss
-        with torch.device(device):
-            psnr = mse2psnr(img_loss)   
+        psnr = mse2psnr(img_loss)   
 
         if 'rgb0' in extras:
             img_loss0 = img2mse(extras['rgb0'], target_s)
