@@ -24,8 +24,6 @@ mps_device = torch.device("mps")
 np.random.seed(0)
 DEBUG = False
 
-.to(device)
-
 
 def batchify(fn, chunk):
     """Constructs a version of 'fn' that applies to smaller batches.
@@ -191,14 +189,14 @@ def create_nerf(args):
     skips = [4]
     model = NeRF(D=args.netdepth, W=args.netwidth,
                  input_ch=input_ch, output_ch=output_ch, skips=skips,
-                 input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+                 input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(mps_device)
     grad_vars = list(model.parameters())
 
     model_fine = None
     if args.N_importance > 0:
         model_fine = NeRF(D=args.netdepth_fine, W=args.netwidth_fine,
                           input_ch=input_ch, output_ch=output_ch, skips=skips,
-                          input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(device)
+                          input_ch_views=input_ch_views, use_viewdirs=args.use_viewdirs).to(mps_device)
         grad_vars += list(model_fine.parameters())
 
     network_query_fn = lambda inputs, viewdirs, network_fn : run_network(inputs, viewdirs, network_fn,
@@ -653,7 +651,7 @@ def train():
     render_kwargs_test.update(bds_dict)
 
     # Move testing data to GPU
-    render_poses = torch.Tensor(render_poses).to(device)
+    render_poses = torch.Tensor(render_poses).to(mps_device)
 
     # Short circuit if only rendering out from trained model
     if args.render_only:
@@ -697,10 +695,10 @@ def train():
 
     # Move training data to GPU
     if use_batching:
-        images = torch.Tensor(images).to(device)
-    poses = torch.Tensor(poses).to(device)
+        images = torch.Tensor(images).to(mps_device)
+    poses = torch.Tensor(poses).to(mps_device)
     if use_batching:
-        rays_rgb = torch.Tensor(rays_rgb).to(device)
+        rays_rgb = torch.Tensor(rays_rgb).to(mps_device)
 
 
     N_iters = 200000 + 1
@@ -734,7 +732,7 @@ def train():
             # Random from one image
             img_i = np.random.choice(i_train)
             target = images[img_i]
-            target = torch.Tensor(target).to(device)
+            target = torch.Tensor(target).to(mps_device)
             pose = poses[img_i, :3,:4]
 
             if N_rand is not None:
@@ -826,7 +824,7 @@ def train():
             os.makedirs(testsavedir, exist_ok=True)
             print('test poses shape', poses[i_test].shape)
             with torch.no_grad():
-                render_path(torch.Tensor(poses[i_test]).to(device), hwf, K, args.chunk, render_kwargs_test, gt_imgs=images[i_test], savedir=testsavedir)
+                render_path(torch.Tensor(poses[i_test]).to(mps_device), hwf, K, args.chunk, render_kwargs_test, gt_imgs=images[i_test], savedir=testsavedir)
             print('Saved test set')
 
 
