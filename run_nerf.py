@@ -19,9 +19,12 @@ from load_blender import load_blender_data
 from load_LINEMOD import load_LINEMOD_data
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+# device = torch.device("mps" if torch.mps.is_available() else "cpu")
+mps_device = torch.device("mps")
 np.random.seed(0)
 DEBUG = False
+
+.to(device)
 
 
 def batchify(fn, chunk):
@@ -152,8 +155,8 @@ def render_path(render_poses, hwf, K, chunk, render_kwargs, gt_imgs=None, savedi
         print(i, time.time() - t)
         t = time.time()
         rgb, disp, acc, _ = render(H, W, K, chunk=chunk, c2w=c2w[:3,:4], **render_kwargs)
-        rgbs.append(rgb.cpu().numpy())
-        disps.append(disp.cpu().numpy())
+        rgbs.append(rgb.mps().numpy())
+        disps.append(disp.mps().numpy())
         if i==0:
             print(rgb.shape, disp.shape)
 
@@ -275,7 +278,9 @@ def raw2outputs(raw, z_vals, rays_d, raw_noise_std=0, white_bkgd=False, pytest=F
     raw2alpha = lambda raw, dists, act_fn=F.relu: 1.-torch.exp(-act_fn(raw)*dists)
 
     dists = z_vals[...,1:] - z_vals[...,:-1]
-    dists = torch.cat([dists, torch.Tensor([1e10]).expand(dists[...,:1].shape)], -1)  # [N_rays, N_samples]
+    # print(type(dists))
+    # print(dists.device)
+    dists = torch.cat([dists, torch.Tensor([1e10]).expand(dists[...,:1].shape).to("mps")], -1)  # [N_rays, N_samples]
 
     dists = dists * torch.norm(rays_d[...,None,:], dim=-1)
 
@@ -765,7 +770,8 @@ def train():
         img_loss = img2mse(rgb, target_s)
         trans = extras['raw'][...,-1]
         loss = img_loss
-        psnr = mse2psnr(img_loss)
+        with torch.device(device):
+            psnr = mse2psnr(img_loss)   
 
         if 'rgb0' in extras:
             img_loss0 = img2mse(extras['rgb0'], target_s)
@@ -873,6 +879,9 @@ def train():
 
 
 if __name__=='__main__':
-    torch.set_default_tensor_type('torch.cuda.FloatTensor')
-
+    # torch.set_default_tensor_type('torch.mps.FloatTensor')
+    torch.set_default_tensor_type('torch.FloatTensor')
+    
+    torch.set_default_dtype(torch.float32)
+    torch.set_default_device(torch.device("mps"))
     train()
